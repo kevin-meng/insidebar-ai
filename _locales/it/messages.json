@@ -634,6 +634,9 @@
   "tooltipToggleSection": {
     "message": "Attiva/disattiva sezione"
   },
+  "tooltipUseAsContext": {
+    "message": "Usa come contesto"
+  },
   "tooltipCopyContent": {
     "message": "Copia contenuto"
   },

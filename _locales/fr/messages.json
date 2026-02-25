@@ -634,6 +634,9 @@
   "tooltipToggleSection": {
     "message": "Afficher/Masquer la section"
   },
+  "tooltipUseAsContext": {
+    "message": "Utiliser comme contexte"
+  },
   "tooltipCopyContent": {
     "message": "Copier le contenu"
   },

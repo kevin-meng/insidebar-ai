@@ -620,6 +620,9 @@
   "tooltipToggleSection": {
     "message": "切换部分"
   },
+  "tooltipUseAsContext": {
+    "message": "用作上下文"
+  },
   "tooltipCopyContent": {
     "message": "复制内容"
   },

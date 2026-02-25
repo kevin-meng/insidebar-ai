@@ -618,6 +618,9 @@
   "tooltipToggleSection": {
     "message": "セクションを切り替え"
   },
+  "tooltipUseAsContext": {
+    "message": "コンテキストとして使用"
+  },
   "tooltipCopyContent": {
     "message": "内容をコピー"
   },

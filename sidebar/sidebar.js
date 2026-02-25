@@ -1665,6 +1665,7 @@ function setupChatHistory() {
 
   // View conversation modal controls
   document.getElementById('close-view-conversation').addEventListener('click', closeViewConversationModal);
+  document.getElementById('use-as-context-btn').addEventListener('click', useConversationAsContext);
   document.getElementById('copy-conversation-btn').addEventListener('click', copyConversationContent);
   document.getElementById('delete-conversation-from-view-btn').addEventListener('click', deleteConversationFromView);
 
@@ -1996,6 +1997,30 @@ async function copyConversationContent() {
     console.error('Error copying to clipboard:', error);
     showToast('Failed to copy');
   }
+}
+
+async function useConversationAsContext() {
+  if (!currentViewingConversationId) return;
+
+  const conversation = await getConversation(currentViewingConversationId);
+  if (!conversation) return;
+
+  const textarea = document.getElementById('prompt-workspace-text');
+  const currentText = textarea.value.trim();
+  const contextText = `--- Previous conversation: ${conversation.title} ---\n${conversation.content}\n--- End of previous conversation ---`;
+
+  // Prepend conversation history as context before any existing text
+  textarea.value = currentText
+    ? `${contextText}\n\n${currentText}`
+    : contextText;
+
+  // Close the view modal
+  closeViewConversationModal();
+
+  // Switch to prompt library view (where the workspace is)
+  switchToView('prompt-library');
+
+  showToast('Conversation added as context to workspace');
 }
 
 async function editConversationFromView() {

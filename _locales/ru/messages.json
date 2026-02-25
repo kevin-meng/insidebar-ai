@@ -634,6 +634,9 @@
   "tooltipToggleSection": {
     "message": "Переключить раздел"
   },
+  "tooltipUseAsContext": {
+    "message": "Использовать как контекст"
+  },
   "tooltipCopyContent": {
     "message": "Копировать содержимое"
   },
