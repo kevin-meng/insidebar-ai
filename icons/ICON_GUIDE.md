@@ -23,7 +23,6 @@ Export these symbols from SF Symbols app to `icons/providers/`:
 3. **gemini.png**: `diamond` or `sparkle`
 4. **grok.png**: `bolt` or `waveform`
 5. **deepseek.png**: `magnifyingglass` or `doc.text.magnifyingglass`
-6. **ollama.png**: `server.rack` or `cpu`
 
 All at 32x32 or 48x48 resolution.
 

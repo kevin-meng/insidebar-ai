@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Some browsers fire `compositionend` before the confirming `keydown`, so `isComposing` is already false; such key presses are now recognised by `keyCode` 229
   - All providers share one check in `enter-behavior-utils.js`
 
+### Removed
+- Unused optional host permissions (`localhost`, `127.0.0.1`, all sites) and the `localhost:3000` header rule left over from the removed Ollama provider
+
 ## [1.7.0] - 2025-10-25
 
 ### Added

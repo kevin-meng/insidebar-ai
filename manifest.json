@@ -31,12 +31,6 @@
     "*://api.github.com/*"
   ],
 
-  "optional_host_permissions": [
-    "*://localhost/*",
-    "*://127.0.0.1/*",
-    "*://*/*"
-  ],
-
   "background": {
     "service_worker": "background/service-worker.js",
     "type": "module"
