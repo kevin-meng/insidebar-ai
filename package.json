@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "web-ext lint --source-dir .",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
@@ -13,7 +12,6 @@
   "devDependencies": {
     "@vitest/ui": "^3.2.4",
     "happy-dom": "^20.0.2",
-    "vitest": "^3.2.4",
-    "web-ext": "^9.0.0"
+    "vitest": "^3.2.4"
   }
 }
