@@ -235,12 +235,21 @@ body {
 }
 
 /* T045: Prompt Library Styles */
+/* The whole view scrolls as one page. The workspace, filters and quick-access panel
+   have fixed heights, so on a short side panel an inner-scrolling #prompt-list would
+   be squeezed to zero height and every prompt would become unreachable. */
 #prompt-library {
   display: flex;
   flex-direction: column;
   height: 100%;
   padding: 16px;
-  overflow: hidden;
+  overflow-y: auto;
+}
+
+/* Children keep their natural height and the view scrolls instead. Without this,
+   a child with overflow set (e.g. #quick-access-panel) would shrink to nothing. */
+#prompt-library > * {
+  flex-shrink: 0;
 }
 
 #prompt-library-header {
@@ -576,8 +585,7 @@ body {
 }
 
 #prompt-list {
-  flex: 1;
-  overflow-y: auto;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: 8px;

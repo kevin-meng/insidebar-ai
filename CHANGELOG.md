@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Prompt Genie Scrolling** (#13): Saved prompts were unreachable on shorter side panels
+  - The prompt list only got the height left over below the workspace and quick-access panel, which was zero on panels below about 1000px tall
+  - The whole Prompt Genie view now scrolls as one page
+
 ## [1.7.0] - 2025-10-25
 
 ### Added
