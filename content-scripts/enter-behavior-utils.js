@@ -11,6 +11,14 @@ function disableEnterSwap() {
   window.removeEventListener("keydown", handleEnterSwap, { capture: true });
 }
 
+// Check if the key press belongs to an IME (e.g., Enter confirming a Japanese or
+// Chinese conversion). isComposing alone is not enough: compositionend can fire
+// *before* the confirming keydown, leaving isComposing false. keyCode is still 229
+// in that case. See https://developer.mozilla.org/en-US/docs/Web/API/Element/keydown_event
+function isImeKeyEvent(event) {
+  return event.isComposing || event.keyCode === 229;
+}
+
 // Check if event matches the configured modifiers
 function matchesModifiers(event, modifiers) {
   return event.shiftKey === (modifiers.shift || false) &&

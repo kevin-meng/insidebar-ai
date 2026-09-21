@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Prompt Genie Scrolling** (#13): Saved prompts were unreachable on shorter side panels
   - The prompt list only got the height left over below the workspace and quick-access panel, which was zero on panels below about 1000px tall
   - The whole Prompt Genie view now scrolls as one page
+- **IME Enter Key** (#15): Enter that confirms a Japanese/Chinese IME conversion no longer also inserts a newline or sends the message
+  - Some browsers fire `compositionend` before the confirming `keydown`, so `isComposing` is already false; such key presses are now recognised by `keyCode` 229
+  - All providers share one check in `enter-behavior-utils.js`
 
 ## [1.7.0] - 2025-10-25
 

@@ -57,8 +57,8 @@ function findSendButton(activeElement, isEditingLexical) {
 
 function handleEnterSwap(event) {
   // Only handle trusted Enter key events
-  // Skip if IME composition is in progress (e.g., Chinese/Japanese input method)
-  if (!event.isTrusted || event.code !== "Enter" || event.isComposing) {
+  // Skip keys consumed by an IME (e.g., Enter confirming a Chinese/Japanese conversion)
+  if (!event.isTrusted || event.code !== "Enter" || isImeKeyEvent(event)) {
     return;
   }
 
