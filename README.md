@@ -170,6 +170,8 @@ Download the latest version from GitHub, remove the old extension from `chrome:/
 
 **No API keys required.** Just log into the providers you want to use in your browser, and insidebar.ai will use those existing sessions.
 
+**Local models (Ollama, LM Studio, etc.) are not supported.** insidebar.ai doesn't call any model API. It loads each provider's official website in the sidebar, so it only works with the hosted services listed above. A local Ollama server offers an API, not a chat website, so there is nothing for the sidebar to load.
+
 ---
 
 ## How to Use
