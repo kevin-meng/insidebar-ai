@@ -2218,3 +2218,142 @@ a.conversation-link:hover {
   background: #4a3a00;
   color: #fbc02d;
 }
+
+
+/* Multi-AI Broadcast */
+.workspace-auto-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.workspace-auto-submit input {
+  margin: 0;
+}
+
+#workspace-provider-btn {
+  gap: 5px;
+}
+
+.workspace-provider-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e3f2fd;
+  color: #1976d2;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.workspace-provider-chevron {
+  font-size: 16px !important;
+  opacity: 0.65;
+}
+
+.workspace-provider-popup {
+  min-width: 220px;
+}
+
+.workspace-provider-popup-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #777;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.workspace-provider-check {
+  font-size: 18px !important;
+  flex: 0 0 18px;
+}
+
+.workspace-send-status {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.workspace-send-status-item {
+  display: grid;
+  grid-template-columns: 18px minmax(80px, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.035);
+  font-size: 11px;
+}
+
+.workspace-send-status-item .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.workspace-send-status-item.sent .material-symbols-outlined {
+  color: #188038;
+}
+
+.workspace-send-status-item.failed .material-symbols-outlined {
+  color: #d93025;
+}
+
+.workspace-send-status-item.sending .material-symbols-outlined {
+  animation: insidebar-spin 1s linear infinite;
+}
+
+.workspace-send-status-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-send-status-text {
+  color: #777;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 145px;
+}
+
+#workspace-send-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+@keyframes insidebar-spin {
+  to { transform: rotate(360deg); }
+}
+
+[data-theme="dark"] .workspace-auto-submit {
+  color: #aaa;
+}
+
+[data-theme="dark"] .workspace-provider-count {
+  background: #203a5f;
+  color: #8ab4f8;
+}
+
+[data-theme="dark"] .workspace-provider-popup-header {
+  border-bottom-color: #444;
+  color: #aaa;
+}
+
+[data-theme="dark"] .workspace-send-status-item {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .workspace-send-status-text {
+  color: #aaa;
+}
