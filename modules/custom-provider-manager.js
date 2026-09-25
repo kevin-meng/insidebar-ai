@@ -209,15 +209,59 @@ export async function installCustomProvider(config) {
     createdAt: Date.now()
   };
 
-  await registerProviderContentScript(provider);
-  await registerProviderFrameRule(provider);
+  let scriptRegistered = false;
+  let ruleRegistered = false;
+  let providerStored = false;
 
-  await saveStoredCustomProviders([...existing, provider]);
+  try {
+    await registerProviderContentScript(provider);
+    scriptRegistered = true;
 
-  const enabledProviders = await getEnabledProviderIds();
-  await setEnabledProviderIds([...enabledProviders, id]);
+    await registerProviderFrameRule(provider);
+    ruleRegistered = true;
 
-  return provider;
+    await saveStoredCustomProviders([...existing, provider]);
+    providerStored = true;
+
+    const enabledProviders = await getEnabledProviderIds();
+    await setEnabledProviderIds([...enabledProviders, id]);
+
+    return provider;
+  } catch (error) {
+    // Roll back runtime artifacts so a failed installation never leaves a
+    // half-installed provider behind. We intentionally do not revoke the host
+    // permission here because the origin may have been granted before this
+    // install attempt or may be used by another extension feature.
+    if (scriptRegistered) {
+      try {
+        await chrome.scripting.unregisterContentScripts({
+          ids: [provider.contentScriptId]
+        });
+      } catch (_) {
+        // Best-effort rollback.
+      }
+    }
+
+    if (ruleRegistered) {
+      try {
+        await chrome.declarativeNetRequest.updateDynamicRules({
+          removeRuleIds: [provider.ruleId]
+        });
+      } catch (_) {
+        // Best-effort rollback.
+      }
+    }
+
+    if (providerStored) {
+      try {
+        await saveStoredCustomProviders(existing);
+      } catch (_) {
+        // Best-effort rollback.
+      }
+    }
+
+    throw error;
+  }
 }
 
 export async function removeCustomProvider(providerId) {
