@@ -519,7 +519,7 @@ async function injectTextIntoProvider(providerId, text, options = {}) {
     throw new Error('Provider and text are required');
   }
 
-  const { submit = false } = options;
+  const { submit = false, insertionMode = 'append' } = options;
   const { provider, iframe } = await ensureProviderLoaded(providerId);
 
   if (!iframe?.contentWindow) {
@@ -559,7 +559,8 @@ async function injectTextIntoProvider(providerId, text, options = {}) {
       requestId,
       text,
       adapter,
-      submit
+      submit,
+      insertionMode
     }, targetOrigin);
   });
 }
@@ -1619,7 +1620,10 @@ async function sendWorkspaceToProviders() {
       statuses.set(providerId, { state: 'sending', message: submit ? 'Sending' : 'Filling' });
       renderWorkspaceSendStatus(statuses);
 
-      const result = await injectTextIntoProvider(providerId, text, { submit });
+      const result = await injectTextIntoProvider(providerId, text, {
+        submit,
+        insertionMode: 'replace'
+      });
 
       if (!result?.success) {
         throw new Error(result?.error || 'provider_runtime_failed');
