@@ -167,6 +167,7 @@
       "js": [
         "content-scripts/enter-behavior-utils.js",
         "content-scripts/enter-behavior-perplexity.js",
+        "content-scripts/text-injection-all-providers.js",
         "content-scripts/conversation-extractor-utils.js",
         "content-scripts/language-detector.js",
         "content-scripts/perplexity-history-extractor.js",
