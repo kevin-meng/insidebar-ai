@@ -142,17 +142,24 @@
             <button id="workspace-clear-btn" data-i18n-title="tooltipClear" title="Clear"><span class="material-symbols-outlined">close</span></button>
           </div>
           <div class="workspace-actions-right">
+            <label class="workspace-auto-submit" title="When enabled, submit the prompt after filling each AI input">
+              <input type="checkbox" id="workspace-auto-submit" checked>
+              <span>Auto send</span>
+            </label>
             <div id="workspace-provider-wrapper">
-              <button id="workspace-provider-btn" data-i18n-title="tooltipSelectProvider" title="Select provider">
+              <button id="workspace-provider-btn" data-i18n-title="tooltipSelectProvider" title="Select AI providers">
                 <img class="provider-icon-small" src="" alt="">
+                <span id="workspace-provider-count" class="workspace-provider-count">1</span>
+                <span class="material-symbols-outlined workspace-provider-chevron">expand_more</span>
               </button>
               <div id="workspace-provider-popup" class="workspace-provider-popup" style="display: none;">
                 <!-- Providers will be dynamically populated here -->
               </div>
             </div>
-            <button id="workspace-send-btn" data-i18n-title="tooltipSendProvider" title="Send to selected provider"><span class="material-symbols-outlined">keyboard_return</span></button>
+            <button id="workspace-send-btn" data-i18n-title="tooltipSendProvider" title="Send to selected AI providers"><span class="material-symbols-outlined">send</span></button>
           </div>
         </div>
+        <div id="workspace-send-status" class="workspace-send-status" style="display: none;"></div>
       </div>
 
       <div id="prompt-library-header">

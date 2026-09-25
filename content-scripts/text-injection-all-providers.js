@@ -1,187 +1,299 @@
-// Text injection handler for all AI providers
-// Self-contained script without module imports (for iframe compatibility)
+// Generic provider runtime for text injection + optional submit.
+// Provider-specific selectors are supplied by the extension's Provider Adapter SDK.
 
 (function() {
   'use strict';
 
-  // Provider-specific selectors
-  const PROVIDER_SELECTORS = {
-    chatgpt: ['#prompt-textarea'],
-    claude: [
-      '.ProseMirror[role="textbox"]',
-      '.ProseMirror[contenteditable="true"]',
-      'div[contenteditable="true"].ProseMirror',
-      'div[contenteditable="true"]'
-    ],
-    gemini: ['.ql-editor'],
-    grok: ['textarea', '.tiptap', '.ProseMirror'],
-    deepseek: ['textarea.ds-scroll-area'],
-    google: ['textarea.ITIRGe', 'textarea[aria-label="Ask anything"]', 'textarea[maxlength="8192"]'],
-    // Copilot uses textarea with id="userInput" or data-testid="composer-input"
-    copilot: ['textarea#userInput', 'textarea[data-testid="composer-input"]', 'textarea[placeholder*="Message Copilot"]']
-  };
+  const MAX_TEXT_BYTES = 1048576;
 
-  // Detect which provider we're on based on hostname
-  function detectProvider() {
-    const hostname = window.location.hostname;
-    if (hostname.includes('chatgpt.com') || hostname.includes('openai.com')) {
-      return 'chatgpt';
-    } else if (hostname.includes('claude.ai')) {
-      return 'claude';
-    } else if (hostname.includes('gemini.google.com')) {
-      return 'gemini';
-    } else if (hostname.includes('grok.com')) {
-      return 'grok';
-    } else if (hostname.includes('deepseek.com')) {
-      return 'deepseek';
-    } else if (hostname.includes('google.com') && window.location.search.includes('udm=50')) {
-      return 'google';
-    } else if (hostname.includes('copilot.microsoft.com') || hostname.includes('bing.com/chat')) {
-      return 'copilot';
+  function isValidSelectorList(value) {
+    return Array.isArray(value) &&
+      value.length > 0 &&
+      value.every(selector => typeof selector === 'string' && selector.trim().length > 0);
+  }
+
+  function isVisible(element) {
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return rect.width > 0 &&
+      rect.height > 0 &&
+      style.display !== 'none' &&
+      style.visibility !== 'hidden';
+  }
+
+  function findFirst(selectors) {
+    if (!Array.isArray(selectors)) return null;
+
+    for (const selector of selectors) {
+      try {
+        const matches = Array.from(document.querySelectorAll(selector));
+        const visible = matches.find(isVisible);
+        if (visible) return visible;
+        if (matches[0]) return matches[0];
+      } catch (error) {
+        console.warn('[Provider Runtime] Invalid selector:', selector, error);
+      }
     }
+
     return null;
   }
 
-  // Find text input element by selector
-  function findTextInputElement(selector) {
-    if (!selector || typeof selector !== 'string') {
-      return null;
-    }
+  function setNativeTextareaValue(element, value) {
+    const proto = element.tagName === 'INPUT'
+      ? window.HTMLInputElement?.prototype
+      : window.HTMLTextAreaElement?.prototype;
 
-    try {
-      return document.querySelector(selector);
-    } catch (error) {
-      console.error('Error finding element:', error);
-      return null;
+    const descriptor = proto
+      ? Object.getOwnPropertyDescriptor(proto, 'value')
+      : null;
+
+    if (descriptor?.set) {
+      descriptor.set.call(element, value);
+    } else {
+      element.value = value;
     }
   }
 
-  // Inject text into an element (textarea or contenteditable)
-  function injectTextIntoElement(element, text) {
-    if (!element || !text || typeof text !== 'string' || text.trim() === '') {
+  function injectTextIntoElement(element, text, insertionMode = 'append') {
+    if (!element || typeof text !== 'string' || !text.trim()) {
       return false;
     }
 
     try {
-      const isTextarea = element.tagName === 'TEXTAREA' || element.tagName === 'INPUT';
-      const isContentEditable = element.isContentEditable || element.getAttribute('contenteditable') === 'true';
+      const isInput = element.tagName === 'TEXTAREA' || element.tagName === 'INPUT';
+      const isContentEditable = element.isContentEditable ||
+        element.getAttribute('contenteditable') === 'true';
 
-      if (!isTextarea && !isContentEditable) {
-        console.warn('Element is not a textarea or contenteditable:', element);
+      if (!isInput && !isContentEditable) {
         return false;
       }
 
-      if (isTextarea) {
-        // For textarea/input elements
-        const currentValue = element.value || '';
-        const newValue = currentValue + text;
-
-        // For React - use native setter to bypass React's control
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-        nativeInputValueSetter.call(element, newValue);
-
-        // Trigger multiple events to notify React/Vue/etc
+      if (isInput) {
+        const currentValue = insertionMode === 'replace' ? '' : (element.value || '');
+        setNativeTextareaValue(element, currentValue + text);
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
 
-        // Move cursor to end (without focusing to avoid cross-origin error)
-        element.selectionStart = element.selectionEnd = element.value.length;
+        try {
+          element.selectionStart = element.selectionEnd = element.value.length;
+        } catch (_) {
+          // Some inputs do not expose selection APIs.
+        }
       } else {
-        // For contenteditable elements
-        const currentText = element.textContent || '';
-        element.textContent = currentText + text;
+        element.focus();
 
-        // Trigger input event
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-
-        // Move cursor to end for contenteditable (without focusing)
         try {
           const range = document.createRange();
           const selection = window.getSelection();
           range.selectNodeContents(element);
-          range.collapse(false); // Collapse to end
+
+          // Append should insert at the end. Replace should keep the whole
+          // editor selected so the browser editing pipeline replaces it.
+          if (insertionMode !== 'replace') {
+            range.collapse(false);
+          }
+
           selection.removeAllRanges();
           selection.addRange(range);
-        } catch (e) {
-          // Ignore selection errors in cross-origin context
+        } catch (_) {
+          // Selection is non-critical.
         }
+
+        // execCommand is deprecated as a general API but remains useful for
+        // contenteditable editors because it drives the same browser editing
+        // pipeline that Lexical/Quill/Slate listen to. Fall back to direct DOM
+        // mutation when a provider does not accept it.
+        let inserted = false;
+        try {
+          inserted = document.execCommand?.('insertText', false, text) === true;
+        } catch (_) {
+          inserted = false;
+        }
+
+        if (!inserted) {
+          const currentText = insertionMode === 'replace' ? '' : (element.textContent || '');
+          element.textContent = currentText + text;
+        }
+
+        element.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          inputType: 'insertText',
+          data: text
+        }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
       return true;
     } catch (error) {
-      console.error('Error injecting text:', error);
+      console.error('[Provider Runtime] Injection failed:', error);
       return false;
     }
   }
 
-  // Handle text injection message
-  function handleTextInjection(event) {
-    // Validate event data structure
-    if (!event || !event.data || typeof event.data !== 'object') {
-      return;
-    }
-
-    // Only handle INJECT_TEXT messages
-    if (event.data.type !== 'INJECT_TEXT') {
-      return;
-    }
-
-    // Validate text payload
-    const text = event.data.text;
-    if (!text || typeof text !== 'string' || text.length === 0) {
-      console.warn('[Text Injection] Invalid text payload');
-      return;
-    }
-
-    // Sanity check: reject extremely large payloads (> 1MB)
-    if (text.length > 1048576) {
-      console.error('[Text Injection] Text payload too large:', text.length, 'bytes');
-      return;
-    }
-
-    const provider = detectProvider();
-    if (!provider) {
-      console.warn('Unknown provider, cannot inject text');
-      return;
-    }
-
-    const selectors = PROVIDER_SELECTORS[provider];
-    if (!selectors) {
-      console.warn('No selectors configured for provider:', provider);
-      return;
-    }
-
-    // Try each selector until we find an element
-    let element = null;
-    for (const selector of selectors) {
-      element = findTextInputElement(selector);
-      if (element) break;
-    }
-
-    if (element) {
-      const success = injectTextIntoElement(element, text);
-      if (!success) {
-        console.error(`[Text Injection] Failed to inject text into ${provider}`);
-      }
-    } else {
-      // Retry after a short delay in case page is still loading
-      setTimeout(() => {
-        let retryElement = null;
-        for (const selector of selectors) {
-          retryElement = findTextInputElement(selector);
-          if (retryElement) {
-            break;
-          }
-        }
-        if (retryElement) {
-          injectTextIntoElement(retryElement, text);
-        } else {
-          console.error(`[Text Injection] ${provider} editor not found`);
-        }
-      }, 1000);
-    }
+  function isClickable(element) {
+    if (!element) return false;
+    if (element.disabled) return false;
+    if (element.getAttribute('aria-disabled') === 'true') return false;
+    return true;
   }
 
-  // Listen for messages from sidebar
-  window.addEventListener('message', handleTextInjection);
+  async function submitPrompt(adapter, input) {
+    // Let React/Vue/Lexical update button state after the input event.
+    await new Promise(resolve => setTimeout(resolve, 120));
+
+    if (adapter.submitMode === 'enter') {
+      input.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      }));
+      return { submitted: true };
+    }
+
+    const selectors = adapter.submitSelectors || [];
+    if (!Array.isArray(selectors) || selectors.length === 0) {
+      return { submitted: false, reason: 'submit_not_configured' };
+    }
+
+    let button = findFirst(selectors);
+
+    if (!button) {
+      // One short retry helps providers that render their send button lazily.
+      await new Promise(resolve => setTimeout(resolve, 450));
+      button = findFirst(selectors);
+    }
+
+    if (!button) {
+      return { submitted: false, reason: 'submit_button_not_found' };
+    }
+
+    if (!isClickable(button)) {
+      return { submitted: false, reason: 'submit_button_disabled' };
+    }
+
+    button.click();
+    return { submitted: true };
+  }
+
+  function reply(requestId, payload) {
+    if (!requestId || window === window.top) return;
+
+    window.parent.postMessage({
+      type: 'INSIDEBAR_PROVIDER_RESULT',
+      requestId,
+      ...payload
+    }, '*');
+  }
+
+  async function handleProviderRequest(event) {
+    if (!event?.data || typeof event.data !== 'object') return;
+    if (event.data.type !== 'INSIDEBAR_PROVIDER_REQUEST') return;
+
+    // Only accept commands from the iframe parent (the extension side panel).
+    if (window === window.top || event.source !== window.parent) return;
+
+    const {
+      requestId,
+      text,
+      adapter,
+      submit = false,
+      insertionMode = 'append'
+    } = event.data;
+
+    if (!text || typeof text !== 'string' || text.length > MAX_TEXT_BYTES) {
+      reply(requestId, {
+        success: false,
+        injected: false,
+        submitted: false,
+        error: 'invalid_text'
+      });
+      return;
+    }
+
+    if (!adapter || !isValidSelectorList(adapter.inputSelectors)) {
+      reply(requestId, {
+        success: false,
+        injected: false,
+        submitted: false,
+        error: 'invalid_adapter'
+      });
+      return;
+    }
+
+    let input = findFirst(adapter.inputSelectors);
+
+    if (!input) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      input = findFirst(adapter.inputSelectors);
+    }
+
+    if (!input) {
+      reply(requestId, {
+        success: false,
+        injected: false,
+        submitted: false,
+        error: 'input_not_found'
+      });
+      return;
+    }
+
+    const injected = injectTextIntoElement(
+      input,
+      text,
+      insertionMode === 'replace' ? 'replace' : 'append'
+    );
+
+    if (!injected) {
+      reply(requestId, {
+        success: false,
+        injected: false,
+        submitted: false,
+        error: 'injection_failed'
+      });
+      return;
+    }
+
+    if (!submit) {
+      reply(requestId, {
+        success: true,
+        injected: true,
+        submitted: false
+      });
+      return;
+    }
+
+    const submitResult = await submitPrompt(adapter, input);
+
+    reply(requestId, {
+      success: submitResult.submitted,
+      injected: true,
+      submitted: submitResult.submitted,
+      error: submitResult.submitted ? null : submitResult.reason
+    });
+  }
+
+  window.addEventListener('message', event => {
+    handleProviderRequest(event).catch(error => {
+      console.error('[Provider Runtime] Request failed:', error);
+      reply(event?.data?.requestId, {
+        success: false,
+        injected: false,
+        submitted: false,
+        error: 'runtime_error'
+      });
+    });
+  });
+
+  // Test-only hook. Production pages never define this flag.
+  if (globalThis.__INSIDEBAR_PROVIDER_RUNTIME_TEST__ === true) {
+    globalThis.__insidebarProviderRuntimeTest = {
+      findFirst,
+      injectTextIntoElement,
+      isClickable
+    };
+  }
 })();

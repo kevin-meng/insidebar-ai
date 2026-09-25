@@ -1,4 +1,6 @@
 import { PROVIDERS, getProviderById, getProviderByIdWithSettings, getEnabledProviders } from '../modules/providers.js';
+import { toRuntimeAdapter } from '../modules/provider-adapters.js';
+import { runWithConcurrency } from '../modules/broadcast-manager.js';
 import { applyTheme } from '../modules/theme-manager.js';
 import { t, translatePage, initializeLanguage } from '../modules/i18n.js';
 import {
@@ -33,6 +35,8 @@ import {
 let currentProvider = null;
 const loadedIframes = new Map();  // providerId -> iframe element
 const loadedIframesState = new Map();  // providerId -> 'loading' | 'ready'
+const pendingProviderRequests = new Map(); // requestId -> { providerId, resolve, reject, timer }
+const PROVIDER_REQUEST_TIMEOUT_MS = 10000;
 let currentView = 'providers';  // 'providers', 'prompt-library', or 'chat-history'
 let currentEditingPromptId = null;
 let currentInsertPromptId = null;  // T071: For insert prompt modal
@@ -62,6 +66,7 @@ async function init() {
   await initializeLanguage();  // Initialize i18n
   translatePage();  // Translate all static text
   await renderProviderTabs();
+  setupProviderRuntimeListener();
   await loadDefaultProvider();
   setupMessageListener();
   setupPromptLibrary();  // T045: Initialize prompt library
@@ -293,6 +298,49 @@ function createProviderIframe(provider) {
   return iframe;
 }
 
+async function ensureProviderLoaded(providerId) {
+  const provider = await getProviderByIdWithSettings(providerId);
+  if (!provider) {
+    throw new Error(`Provider ${providerId} not found`);
+  }
+
+  let iframe = loadedIframes.get(providerId);
+
+  if (!iframe) {
+    iframe = createProviderIframe(provider);
+    loadedIframes.set(providerId, iframe);
+
+    // Background broadcasts should not visually switch the active provider.
+    if (providerId !== currentProvider) {
+      iframe.style.display = 'none';
+    }
+  }
+
+  await waitForIframeReady(providerId);
+  return { provider, iframe };
+}
+
+function setupProviderRuntimeListener() {
+  window.addEventListener('message', event => {
+    const data = event?.data;
+    if (!data || data.type !== 'INSIDEBAR_PROVIDER_RESULT' || !data.requestId) {
+      return;
+    }
+
+    const pending = pendingProviderRequests.get(data.requestId);
+    if (!pending) return;
+
+    const iframe = loadedIframes.get(pending.providerId);
+    if (!iframe || iframe.contentWindow !== event.source) {
+      return;
+    }
+
+    clearTimeout(pending.timer);
+    pendingProviderRequests.delete(data.requestId);
+    pending.resolve(data);
+  });
+}
+
 // T017: Load default or last selected provider
 async function loadDefaultProvider() {
   const settings = await chrome.storage.sync.get({
@@ -433,61 +481,88 @@ function setupMessageListener() {
   });
 }
 
-// Wait for iframe to be fully loaded and ready
-async function waitForIframeReady(providerId) {
+// Wait for iframe to be fully loaded and ready, but never block a broadcast forever.
+async function waitForIframeReady(providerId, timeoutMs = 12000) {
   const iframe = loadedIframes.get(providerId);
   if (!iframe) {
     throw new Error(`Iframe for provider ${providerId} not found`);
   }
 
-  const state = loadedIframesState.get(providerId);
-
-  // If already ready, return immediately
-  if (state === 'ready') {
+  if (loadedIframesState.get(providerId) === 'ready') {
     return;
   }
 
-  // If loading, wait for load event
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+
     const checkReady = () => {
       if (loadedIframesState.get(providerId) === 'ready') {
         resolve();
-      } else {
-        // Check again after a short delay
-        setTimeout(checkReady, 100);
+        return;
       }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        reject(new Error(`Iframe load timed out: ${providerId}`));
+        return;
+      }
+
+      setTimeout(checkReady, 100);
     };
+
     checkReady();
   });
 }
 
-// Inject selected text into provider iframe
-async function injectTextIntoProvider(providerId, text) {
+// Send text to a provider iframe through the generic Provider Adapter runtime.
+async function injectTextIntoProvider(providerId, text, options = {}) {
   if (!text || !providerId) {
-    return;
+    throw new Error('Provider and text are required');
   }
 
-  try {
-    // Wait for iframe to be ready (event-driven, no fixed delay)
-    await waitForIframeReady(providerId);
+  const { submit = false, insertionMode = 'append' } = options;
+  const { provider, iframe } = await ensureProviderLoaded(providerId);
 
-    const iframe = loadedIframes.get(providerId);
-    if (!iframe || !iframe.contentWindow) {
-      console.warn('Provider iframe not found or not ready:', providerId);
-      return;
-    }
-
-    // Send message to content script inside the iframe
-    iframe.contentWindow.postMessage(
-      {
-        type: 'INJECT_TEXT',
-        text: text
-      },
-      '*' // We're posting to same-origin AI provider domains
-    );
-  } catch (error) {
-    console.error('Error sending text injection message:', error);
+  if (!iframe?.contentWindow) {
+    throw new Error(`Provider iframe not ready: ${providerId}`);
   }
+
+  const adapter = toRuntimeAdapter(provider.adapter);
+  if (!adapter) {
+    throw new Error(`Provider adapter not configured: ${providerId}`);
+  }
+
+  if (submit && !adapter.capabilities?.autoSubmit) {
+    throw new Error(`Auto-submit is not supported for ${provider.name}`);
+  }
+
+  const requestId = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `${providerId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const targetOrigin = new URL(provider.url).origin;
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingProviderRequests.delete(requestId);
+      reject(new Error(`Provider request timed out: ${provider.name}`));
+    }, PROVIDER_REQUEST_TIMEOUT_MS);
+
+    pendingProviderRequests.set(requestId, {
+      providerId,
+      resolve,
+      reject,
+      timer
+    });
+
+    iframe.contentWindow.postMessage({
+      type: 'INSIDEBAR_PROVIDER_REQUEST',
+      requestId,
+      text,
+      adapter,
+      submit,
+      insertionMode
+    }, targetOrigin);
+  });
 }
 
 // T019: Show/hide error message
@@ -677,7 +752,7 @@ function setupPromptLibrary() {
   });
 
   // Workspace button listeners
-  document.getElementById('workspace-send-btn').addEventListener('click', sendWorkspaceToProvider);
+  document.getElementById('workspace-send-btn').addEventListener('click', sendWorkspaceToProviders);
   document.getElementById('workspace-copy-btn').addEventListener('click', copyWorkspaceText);
   document.getElementById('workspace-save-btn').addEventListener('click', saveWorkspaceAsPrompt);
   document.getElementById('workspace-clear-btn').addEventListener('click', clearWorkspace);
@@ -701,33 +776,20 @@ function setupPromptLibrary() {
     }
   });
 
-  // Handle provider selection from popup - delegate to dynamically added items
+  // Multi-select provider picker for Broadcast.
   workspaceProviderPopup.addEventListener('click', async (e) => {
     const item = e.target.closest('.workspace-provider-popup-item');
-    if (item) {
-      const providerId = item.dataset.providerId;
+    if (!item) return;
 
-      // Update selected provider
-      selectedWorkspaceProvider = providerId;
+    const providerId = item.dataset.providerId;
 
-      // Update selected state in popup
-      workspaceProviderPopup.querySelectorAll('.workspace-provider-popup-item').forEach(popupItem => {
-        popupItem.classList.remove('selected');
-      });
-      item.classList.add('selected');
-
-      // Update button icon
-      const icon = workspaceProviderBtn.querySelector('.provider-icon-small');
-      const selectedIcon = item.querySelector('.provider-icon-small');
-      if (icon && selectedIcon) {
-        icon.src = selectedIcon.src;
-        icon.alt = selectedIcon.alt;
-      }
-
-      // Close popup
-      workspaceProviderPopup.style.display = 'none';
-      workspaceProviderBtn.classList.remove('active');
+    if (selectedWorkspaceProviders.has(providerId)) {
+      selectedWorkspaceProviders.delete(providerId);
+    } else {
+      selectedWorkspaceProviders.add(providerId);
     }
+
+    await updateWorkspaceProviderSelector();
   });
 
   // T071: Quick Access Panel toggle listeners
@@ -1378,7 +1440,7 @@ function openBrowserShortcutSettings(browser) {
 }
 
 // Workspace helper functions
-let selectedWorkspaceProvider = null;
+let selectedWorkspaceProviders = new Set();
 
 async function updateWorkspaceProviderSelector() {
   const btn = document.getElementById('workspace-provider-btn');
@@ -1387,26 +1449,58 @@ async function updateWorkspaceProviderSelector() {
   if (!btn || !popup) return;
 
   const enabledProviders = await getEnabledProviders();
+  const enabledIds = new Set(enabledProviders.map(provider => provider.id));
   const useDarkIcons = isDarkTheme();
 
-  // Set current provider as default if available
-  selectedWorkspaceProvider = currentProvider || enabledProviders[0]?.id || '';
+  // Keep valid existing selections. Seed with the current provider on first use.
+  selectedWorkspaceProviders = new Set(
+    [...selectedWorkspaceProviders].filter(providerId => enabledIds.has(providerId))
+  );
 
-  // Update button icon
-  const currentProviderData = enabledProviders.find(p => p.id === selectedWorkspaceProvider);
-  if (currentProviderData) {
-    const icon = btn.querySelector('.provider-icon-small');
-    icon.src = useDarkIcons && currentProviderData.iconDark ? currentProviderData.iconDark : currentProviderData.icon;
-    icon.alt = currentProviderData.name;
+  if (selectedWorkspaceProviders.size === 0 && enabledProviders.length > 0) {
+    const initialProviderId = enabledIds.has(currentProvider)
+      ? currentProvider
+      : enabledProviders[0].id;
+    selectedWorkspaceProviders.add(initialProviderId);
   }
 
-  // Populate popup with providers
-  popup.innerHTML = enabledProviders.map(provider => `
-    <div class="workspace-provider-popup-item ${provider.id === selectedWorkspaceProvider ? 'selected' : ''}" data-provider-id="${provider.id}">
-      <img class="provider-icon-small" src="${useDarkIcons && provider.iconDark ? provider.iconDark : provider.icon}" alt="${escapeHtml(provider.name)}">
-      <span>${escapeHtml(provider.name)}</span>
-    </div>
-  `).join('');
+  const selectedProviders = enabledProviders.filter(provider =>
+    selectedWorkspaceProviders.has(provider.id)
+  );
+
+  const icon = btn.querySelector('.provider-icon-small');
+  const count = btn.querySelector('#workspace-provider-count');
+  const firstSelected = selectedProviders[0];
+
+  if (icon && firstSelected) {
+    icon.src = useDarkIcons && firstSelected.iconDark ? firstSelected.iconDark : firstSelected.icon;
+    icon.alt = firstSelected.name;
+    icon.style.display = 'block';
+  } else if (icon) {
+    icon.style.display = 'none';
+  }
+
+  if (count) {
+    count.textContent = String(selectedWorkspaceProviders.size);
+  }
+
+  btn.title = selectedProviders.length > 0
+    ? `Send to: ${selectedProviders.map(provider => provider.name).join(', ')}`
+    : 'Select AI providers';
+
+  popup.innerHTML = `
+    <div class="workspace-provider-popup-header">Select AI providers</div>
+    ${enabledProviders.map(provider => {
+      const selected = selectedWorkspaceProviders.has(provider.id);
+      return `
+        <div class="workspace-provider-popup-item ${selected ? 'selected' : ''}" data-provider-id="${provider.id}" role="option" aria-selected="${selected}">
+          <span class="workspace-provider-check material-symbols-outlined">${selected ? 'check_box' : 'check_box_outline_blank'}</span>
+          <img class="provider-icon-small" src="${useDarkIcons && provider.iconDark ? provider.iconDark : provider.icon}" alt="${escapeHtml(provider.name)}">
+          <span>${escapeHtml(provider.name)}</span>
+        </div>
+      `;
+    }).join('')}
+  `;
 }
 
 function showWorkspaceWithText(text) {
@@ -1463,14 +1557,48 @@ function clearWorkspace() {
   // Workspace stays visible - no longer hide it
 }
 
-async function sendWorkspaceToProvider() {
+function renderWorkspaceSendStatus(statuses) {
+  const container = document.getElementById('workspace-send-status');
+  if (!container) return;
+
+  if (!statuses || statuses.size === 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  container.style.display = 'flex';
+  container.innerHTML = [...statuses.entries()].map(([providerId, status]) => {
+    const provider = getProviderById(providerId);
+    const label = provider?.name || providerId;
+    const icon = status.state === 'sent'
+      ? 'check_circle'
+      : status.state === 'failed'
+        ? 'error'
+        : status.state === 'sending'
+          ? 'progress_activity'
+          : 'schedule';
+
+    return `
+      <div class="workspace-send-status-item ${status.state}">
+        <span class="material-symbols-outlined">${icon}</span>
+        <span class="workspace-send-status-name">${escapeHtml(label)}</span>
+        <span class="workspace-send-status-text">${escapeHtml(status.message || status.state)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function sendWorkspaceToProviders() {
   const textarea = document.getElementById('prompt-workspace-text');
-
-  const providerId = selectedWorkspaceProvider;
+  const sendButton = document.getElementById('workspace-send-btn');
+  const autoSubmitToggle = document.getElementById('workspace-auto-submit');
   const text = textarea.value.trim();
+  const providerIds = [...selectedWorkspaceProviders];
+  const submit = autoSubmitToggle?.checked !== false;
 
-  if (!providerId) {
-    showToast('Please select a provider');
+  if (providerIds.length === 0) {
+    showToast('Please select at least one AI provider');
     return;
   }
 
@@ -1479,22 +1607,61 @@ async function sendWorkspaceToProvider() {
     return;
   }
 
+  const statuses = new Map(providerIds.map(providerId => [
+    providerId,
+    { state: 'waiting', message: 'Waiting' }
+  ]));
+
+  renderWorkspaceSendStatus(statuses);
+  sendButton.disabled = true;
+
   try {
-    // Switch to the selected provider
-    await switchProvider(providerId);
+    const results = await runWithConcurrency(providerIds, 3, async providerId => {
+      statuses.set(providerId, { state: 'sending', message: submit ? 'Sending' : 'Filling' });
+      renderWorkspaceSendStatus(statuses);
 
-    // Inject the text into the provider (now waits for iframe to be ready)
-    await injectTextIntoProvider(providerId, text);
+      const result = await injectTextIntoProvider(providerId, text, {
+        submit,
+        insertionMode: 'replace'
+      });
 
-    // Get provider name for toast
-    const provider = await getProviderByIdWithSettings(providerId);
-    showToast(`Text sent to ${provider.name}!`);
+      if (!result?.success) {
+        throw new Error(result?.error || 'provider_runtime_failed');
+      }
 
-    // Optionally clear workspace after sending
-    // clearWorkspace();
+      statuses.set(providerId, {
+        state: 'sent',
+        message: result.submitted ? 'Sent' : 'Filled'
+      });
+      renderWorkspaceSendStatus(statuses);
+      return result;
+    });
+
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        const providerId = result.item;
+        statuses.set(providerId, {
+          state: 'failed',
+          message: result.reason?.message || 'Failed'
+        });
+      }
+    }
+
+    renderWorkspaceSendStatus(statuses);
+
+    const successCount = results.filter(result => result.status === 'fulfilled').length;
+    const failedCount = results.length - successCount;
+
+    showToast(
+      failedCount > 0
+        ? `${successCount} AI succeeded, ${failedCount} failed`
+        : `Sent to ${successCount} AI provider${successCount === 1 ? '' : 's'}`
+    );
   } catch (error) {
-    console.error('Error sending workspace text to provider:', error);
-    showToast('Failed to send text');
+    console.error('Error broadcasting workspace text:', error);
+    showToast('Broadcast failed');
+  } finally {
+    sendButton.disabled = false;
   }
 }
 

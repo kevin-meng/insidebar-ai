@@ -1,5 +1,11 @@
 // T050-T064: Settings Page Implementation
-import { PROVIDERS } from '../modules/providers.js';
+import { PROVIDERS, DEFAULT_ENABLED_PROVIDER_IDS, getEnabledProviders } from '../modules/providers.js';
+import {
+  getStoredCustomProviders,
+  installCustomProvider,
+  removeCustomProvider
+} from '../modules/custom-provider-manager.js';
+import { PROVIDER_PRESETS } from '../modules/provider-presets.js';
 import { getSettings, getSetting, saveSettings, saveSetting, resetSettings, exportSettings, importSettings } from '../modules/settings.js';
 import { applyTheme } from '../modules/theme-manager.js';
 import {
@@ -20,7 +26,6 @@ import {
   checkForUpdates
 } from '../modules/version-checker.js';
 import { t, translatePage, getCurrentLanguage, initializeLanguage } from '../modules/i18n.js';
-const DEFAULT_ENABLED_PROVIDERS = ['chatgpt', 'claude', 'gemini', 'google', 'grok', 'deepseek', 'copilot'];
 
 // Helper function to get browser's current language in our supported format
 function getCurrentBrowserLanguage() {
@@ -39,7 +44,7 @@ function getEnabledProvidersOrDefault(settings) {
   if (settings.enabledProviders && Array.isArray(settings.enabledProviders)) {
     return [...settings.enabledProviders];
   }
-  return [...DEFAULT_ENABLED_PROVIDERS];
+  return [...DEFAULT_ENABLED_PROVIDER_IDS];
 }
 
 function isEdgeBrowser() {
@@ -140,6 +145,9 @@ async function init() {
   await loadVersionDisplay();  // T073: Load and display version info
   await hideUpdateCheckingIfNeeded();  // Hide update checking for web store installations
   await renderProviderList();
+  await renderCustomProviderList();
+  await renderProviderPresetList();
+  setupCustomProviderControls();
   setupEventListeners();
   setupShortcutHelpers();
 }
@@ -242,35 +250,218 @@ async function renderProviderList() {
     });
   });
 }
+async function renderProviderPresetList() {
+  const container = document.getElementById('provider-preset-list');
+  if (!container) return;
+
+  const installed = await getStoredCustomProviders();
+  const installedPresetIds = new Set(installed.map(provider => provider.presetId).filter(Boolean));
+
+  container.innerHTML = '';
+
+  PROVIDER_PRESETS.forEach(preset => {
+    const card = document.createElement('div');
+    card.className = 'provider-preset-card';
+
+    const header = document.createElement('div');
+    header.className = 'provider-preset-card-header';
+
+    const name = document.createElement('div');
+    name.className = 'provider-preset-card-name';
+    name.textContent = preset.name;
+
+    const badge = document.createElement('span');
+    badge.className = 'provider-preset-badge';
+    badge.textContent = preset.status === 'experimental' ? 'Experimental' : preset.status;
+
+    header.appendChild(name);
+    header.appendChild(badge);
+
+    const url = document.createElement('div');
+    url.className = 'provider-preset-card-url';
+    url.textContent = preset.url;
+
+    const actions = document.createElement('div');
+    actions.className = 'provider-preset-card-actions';
+
+    if (installedPresetIds.has(preset.id)) {
+      const installedLabel = document.createElement('span');
+      installedLabel.className = 'provider-preset-installed';
+      installedLabel.textContent = 'Installed';
+      actions.appendChild(installedLabel);
+    } else {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-secondary';
+      button.textContent = 'Install';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await installCustomProvider({
+            presetId: preset.id,
+            name: preset.name,
+            url: preset.url,
+            inputSelectors: preset.inputSelectors,
+            submitSelectors: preset.submitSelectors,
+            submitMode: preset.submitMode,
+            autoSubmit: true
+          });
+
+          await renderProviderPresetList();
+          await renderCustomProviderList();
+          await updateDefaultProviderDropdown();
+          showStatus('success', `${preset.name} installed. Open the sidebar to test it.`);
+        } catch (error) {
+          console.error('Failed to install provider preset:', error);
+          showStatus('error', error.message || `Failed to install ${preset.name}`);
+        } finally {
+          button.disabled = false;
+        }
+      });
+      actions.appendChild(button);
+    }
+
+    card.appendChild(header);
+    card.appendChild(url);
+    card.appendChild(actions);
+    container.appendChild(card);
+  });
+}
+
+async function renderCustomProviderList() {
+  const container = document.getElementById('custom-provider-list');
+  if (!container) return;
+
+  const providers = await getStoredCustomProviders();
+  container.innerHTML = '';
+
+  if (providers.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'custom-provider-empty';
+    empty.textContent = 'No custom providers yet. Built-in adapters can still be added in code.';
+    container.appendChild(empty);
+    return;
+  }
+
+  providers.forEach(provider => {
+    const item = document.createElement('div');
+    item.className = 'custom-provider-item';
+
+    const main = document.createElement('div');
+    main.className = 'custom-provider-item-main';
+
+    const name = document.createElement('div');
+    name.className = 'custom-provider-item-name';
+    name.textContent = provider.name;
+
+    const url = document.createElement('div');
+    url.className = 'custom-provider-item-url';
+    url.textContent = provider.url;
+
+    main.appendChild(name);
+    main.appendChild(url);
+
+    const remove = document.createElement('button');
+    remove.className = 'btn btn-secondary custom-provider-remove';
+    remove.type = 'button';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', async () => {
+      try {
+        await removeCustomProvider(provider.id);
+        await renderCustomProviderList();
+        await renderProviderPresetList();
+        await updateDefaultProviderDropdown();
+        showStatus('success', `Removed ${provider.name}`);
+      } catch (error) {
+        showStatus('error', error.message || 'Failed to remove provider');
+      }
+    });
+
+    item.appendChild(main);
+    item.appendChild(remove);
+    container.appendChild(item);
+  });
+}
+
+function parseCustomProviderSelectors(elementId) {
+  return document.getElementById(elementId)?.value
+    .split(/\r?\n|,/)
+    .map(value => value.trim())
+    .filter(Boolean) || [];
+}
+
+function setupCustomProviderControls() {
+  const addButton = document.getElementById('add-custom-provider-btn');
+  const submitMode = document.getElementById('custom-provider-submit-mode');
+  const submitRow = document.getElementById('custom-provider-submit-selectors-row');
+
+  if (!addButton) return;
+
+  const updateSubmitFields = () => {
+    if (!submitRow || !submitMode) return;
+    submitRow.style.display = submitMode.value === 'enter' ? 'none' : 'flex';
+  };
+
+  submitMode?.addEventListener('change', updateSubmitFields);
+  updateSubmitFields();
+
+  addButton.addEventListener('click', async () => {
+    const nameInput = document.getElementById('custom-provider-name');
+    const urlInput = document.getElementById('custom-provider-url');
+    const autoSubmit = document.getElementById('custom-provider-auto-submit');
+
+    addButton.disabled = true;
+
+    try {
+      const provider = await installCustomProvider({
+        name: nameInput.value,
+        url: urlInput.value,
+        inputSelectors: parseCustomProviderSelectors('custom-provider-input-selectors'),
+        submitSelectors: parseCustomProviderSelectors('custom-provider-submit-selectors'),
+        submitMode: submitMode?.value || 'button',
+        autoSubmit: autoSubmit?.checked !== false
+      });
+
+      nameInput.value = '';
+      urlInput.value = '';
+      document.getElementById('custom-provider-input-selectors').value = '';
+      document.getElementById('custom-provider-submit-selectors').value = '';
+
+      await renderCustomProviderList();
+      await renderProviderPresetList();
+      await updateDefaultProviderDropdown();
+      showStatus('success', `Added ${provider.name}. Open the sidebar to use it.`);
+    } catch (error) {
+      console.error('Failed to add custom provider:', error);
+      showStatus('error', error.message || 'Failed to add custom provider');
+    } finally {
+      addButton.disabled = false;
+    }
+  });
+}
+
 
 // Update the default provider dropdown to show only enabled providers
 async function updateDefaultProviderDropdown() {
   const settings = await getSettings();
-  const enabledProviders = getEnabledProvidersOrDefault(settings);
+  const enabledProviders = await getEnabledProviders();
   const dropdown = document.getElementById('default-provider-select');
   const currentDefault = settings.defaultProvider || 'chatgpt';
+  const enabledIds = enabledProviders.map(provider => provider.id);
 
-  // Clear existing options
   dropdown.innerHTML = '';
 
-  // Populate with enabled providers only
-  enabledProviders.forEach(providerId => {
-    const provider = PROVIDERS.find(p => p.id === providerId);
-    if (provider) {
-      const option = document.createElement('option');
-      option.value = provider.id;
-      option.textContent = provider.name;
-      dropdown.appendChild(option);
-    }
+  enabledProviders.forEach(provider => {
+    const option = document.createElement('option');
+    option.value = provider.id;
+    option.textContent = provider.name;
+    dropdown.appendChild(option);
   });
 
-  // Set the selected value
-  // If current default is still enabled, keep it; otherwise use first enabled provider
-  if (enabledProviders.includes(currentDefault)) {
+  if (enabledIds.includes(currentDefault)) {
     dropdown.value = currentDefault;
-  } else {
-    // Current default was disabled, switch to first enabled provider
-    const newDefault = enabledProviders[0];
+  } else if (enabledProviders.length > 0) {
+    const newDefault = enabledProviders[0].id;
     dropdown.value = newDefault;
     await saveSetting('defaultProvider', newDefault);
   }

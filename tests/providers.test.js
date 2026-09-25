@@ -13,7 +13,7 @@ describe('providers module', () => {
 
   describe('PROVIDERS constant', () => {
     it('should contain all expected providers', () => {
-      expect(PROVIDERS).toHaveLength(7);
+      expect(PROVIDERS).toHaveLength(8);
       const providerIds = PROVIDERS.map((p) => p.id);
       expect(providerIds).toEqual([
         'chatgpt',
@@ -23,6 +23,7 @@ describe('providers module', () => {
         'grok',
         'copilot',
         'deepseek',
+        'perplexity',
       ]);
     });
 
@@ -34,6 +35,8 @@ describe('providers module', () => {
         expect(provider).toHaveProperty('icon');
         expect(provider).toHaveProperty('iconDark');
         expect(provider).toHaveProperty('enabled');
+        expect(provider).toHaveProperty('adapter');
+        expect(provider.adapter).toBeTruthy();
       });
     });
   });
@@ -68,6 +71,40 @@ describe('providers module', () => {
       const provider = await getProviderByIdWithSettings('nonexistent');
 
       expect(provider).toBeNull();
+    });
+  });
+
+  describe('custom provider fault isolation', () => {
+    it('skips invalid custom provider records without breaking built-in providers', async () => {
+      chrome.storage.sync.get.mockImplementation((defaults) => {
+        if (Object.hasOwn(defaults, 'customProviders')) {
+          return Promise.resolve({
+            customProviders: [{
+              id: 'custom-broken',
+              name: 'Broken AI',
+              url: 'https://broken.example.com',
+              inputSelectors: []
+            }]
+          });
+        }
+
+        if (Object.hasOwn(defaults, 'enabledProviders')) {
+          return Promise.resolve({
+            enabledProviders: ['chatgpt', 'custom-broken']
+          });
+        }
+
+        return Promise.resolve(defaults);
+      });
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const providers = await getEnabledProviders();
+
+      expect(providers.map(provider => provider.id)).toEqual(['chatgpt']);
+      expect(warnSpy).toHaveBeenCalled();
+
+      warnSpy.mockRestore();
     });
   });
 
