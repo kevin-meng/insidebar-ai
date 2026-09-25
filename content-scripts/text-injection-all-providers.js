@@ -87,25 +87,17 @@
           const range = document.createRange();
           const selection = window.getSelection();
           range.selectNodeContents(element);
-          range.collapse(insertionMode !== 'replace');
+
+          // Append should insert at the end. Replace should keep the whole
+          // editor selected so the browser editing pipeline replaces it.
+          if (insertionMode !== 'replace') {
+            range.collapse(false);
+          }
+
           selection.removeAllRanges();
           selection.addRange(range);
         } catch (_) {
           // Selection is non-critical.
-        }
-
-        if (insertionMode === 'replace') {
-          element.textContent = '';
-          try {
-            const range = document.createRange();
-            const selection = window.getSelection();
-            range.selectNodeContents(element);
-            range.collapse(false);
-            selection.removeAllRanges();
-            selection.addRange(range);
-          } catch (_) {
-            // Selection is non-critical.
-          }
         }
 
         // execCommand is deprecated as a general API but remains useful for
@@ -295,4 +287,13 @@
       });
     });
   });
+
+  // Test-only hook. Production pages never define this flag.
+  if (globalThis.__INSIDEBAR_PROVIDER_RUNTIME_TEST__ === true) {
+    globalThis.__insidebarProviderRuntimeTest = {
+      findFirst,
+      injectTextIntoElement,
+      isClickable
+    };
+  }
 })();
