@@ -13,7 +13,7 @@ describe('providers module', () => {
 
   describe('PROVIDERS constant', () => {
     it('should contain all expected providers', () => {
-      expect(PROVIDERS).toHaveLength(7);
+      expect(PROVIDERS).toHaveLength(8);
       const providerIds = PROVIDERS.map((p) => p.id);
       expect(providerIds).toEqual([
         'chatgpt',
@@ -23,6 +23,7 @@ describe('providers module', () => {
         'grok',
         'copilot',
         'deepseek',
+        'perplexity',
       ]);
     });
 
@@ -34,6 +35,8 @@ describe('providers module', () => {
         expect(provider).toHaveProperty('icon');
         expect(provider).toHaveProperty('iconDark');
         expect(provider).toHaveProperty('enabled');
+        expect(provider).toHaveProperty('adapter');
+        expect(provider.adapter).toBeTruthy();
       });
     });
   });
