@@ -279,3 +279,99 @@ Permanent architecture docs remain in:
 - `docs/MULTI_AI_ROADMAP.md`
 
 Future implementation stages should follow the same pattern rather than relying on chat history.
+
+
+---
+
+## Phase 11 · Deterministic insertion semantics
+
+### Change
+
+Broadcast now explicitly uses `insertionMode: 'replace'`, while legacy context-menu injection keeps append behavior.
+
+### Reason
+
+Multi-AI comparison is only meaningful when every provider receives the same exact prompt. An old draft in one provider must not be silently concatenated.
+
+### Additional validation
+
+A test-only hook was added to the actual shipped provider runtime and the content script itself is executed in the test environment.
+
+Behavior now covered:
+
+- textarea append;
+- textarea replace;
+- contenteditable append;
+- contenteditable replace;
+- input/change events;
+- rejection of non-editable targets.
+
+During review, a Range collapse-direction bug was found before browser E2E and corrected. This is recorded because it demonstrates why testing the shipped content script matters rather than only testing a separate helper.
+
+---
+
+## Phase 12 · Transactional install + fault isolation
+
+### Partial-install rollback
+
+Custom Provider installation now rolls back runtime artifacts when a later step fails.
+
+Example:
+
+```text
+content script registered
+        ↓
+DNR registration fails
+        ↓
+unregister content script
+        ↓
+do not persist provider
+```
+
+The host permission is intentionally not auto-revoked during rollback because that permission may have existed before the install attempt.
+
+### Invalid-record isolation
+
+Malformed custom Provider records are skipped with a warning instead of throwing from the whole Provider Registry.
+
+Result:
+
+- one broken custom provider cannot disable ChatGPT/Claude/etc.;
+- built-in providers remain available;
+- bad configuration is observable in console diagnostics.
+
+Both behaviors have regression tests.
+
+---
+
+## Phase 13 · CI and documentation governance
+
+### CI optimization
+
+Feature branches no longer run duplicate `push` and `pull_request` workflows.
+
+Current policy:
+
+- `push` → main
+- `pull_request` → feature validation
+
+### Final automated result for this stage
+
+At head validation:
+
+- architecture validator passed;
+- 8 built-in providers validated;
+- 4 presets validated;
+- 11 static DNR rules validated;
+- 15 test files passed;
+- 202 tests passed.
+
+### Documentation governance
+
+Added:
+
+- global `docs/development/README.md` index;
+- dated stage directory;
+- explicit follow-up backlog.
+
+Future material code stages should update documentation in the same PR.
