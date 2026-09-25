@@ -74,6 +74,40 @@ describe('providers module', () => {
     });
   });
 
+  describe('custom provider fault isolation', () => {
+    it('skips invalid custom provider records without breaking built-in providers', async () => {
+      chrome.storage.sync.get.mockImplementation((defaults) => {
+        if (Object.hasOwn(defaults, 'customProviders')) {
+          return Promise.resolve({
+            customProviders: [{
+              id: 'custom-broken',
+              name: 'Broken AI',
+              url: 'https://broken.example.com',
+              inputSelectors: []
+            }]
+          });
+        }
+
+        if (Object.hasOwn(defaults, 'enabledProviders')) {
+          return Promise.resolve({
+            enabledProviders: ['chatgpt', 'custom-broken']
+          });
+        }
+
+        return Promise.resolve(defaults);
+      });
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const providers = await getEnabledProviders();
+
+      expect(providers.map(provider => provider.id)).toEqual(['chatgpt']);
+      expect(warnSpy).toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+  });
+
   describe('getEnabledProviders', () => {
     it('should return enabled providers from settings', async () => {
       chrome.storage.sync.get.mockResolvedValue({
