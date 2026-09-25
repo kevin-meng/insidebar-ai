@@ -96,6 +96,28 @@ describe('custom provider manager', () => {
     expect(chrome.declarativeNetRequest.updateDynamicRules).not.toHaveBeenCalled();
   });
 
+  it('rolls back a registered content script when DNR installation fails', async () => {
+    chrome.declarativeNetRequest.updateDynamicRules.mockRejectedValueOnce(
+      new Error('DNR failed')
+    );
+
+    await expect(installCustomProvider({
+      name: 'Rollback AI',
+      url: 'https://rollback.example.com',
+      inputSelectors: ['textarea'],
+      submitSelectors: ['button[type="submit"]']
+    })).rejects.toThrow('DNR failed');
+
+    expect(chrome.scripting.registerContentScripts).toHaveBeenCalledTimes(1);
+    expect(chrome.scripting.unregisterContentScripts).toHaveBeenCalledTimes(2);
+
+    const unregisterCalls = chrome.scripting.unregisterContentScripts.mock.calls;
+    expect(unregisterCalls[1][0].ids[0]).toContain('insidebar-custom-provider-');
+
+    const setCalls = chrome.storage.sync.set.mock.calls.map(call => call[0]);
+    expect(setCalls.some(payload => Array.isArray(payload.customProviders))).toBe(false);
+  });
+
   it('removes runtime registration, storage entry and optional permission', async () => {
     const storedProvider = {
       id: 'custom-example-1234',
