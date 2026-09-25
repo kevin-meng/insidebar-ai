@@ -12,13 +12,25 @@
       value.every(selector => typeof selector === 'string' && selector.trim().length > 0);
   }
 
+  function isVisible(element) {
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return rect.width > 0 &&
+      rect.height > 0 &&
+      style.display !== 'none' &&
+      style.visibility !== 'hidden';
+  }
+
   function findFirst(selectors) {
     if (!Array.isArray(selectors)) return null;
 
     for (const selector of selectors) {
       try {
-        const element = document.querySelector(selector);
-        if (element) return element;
+        const matches = Array.from(document.querySelectorAll(selector));
+        const visible = matches.find(isVisible);
+        if (visible) return visible;
+        if (matches[0]) return matches[0];
       } catch (error) {
         console.warn('[Provider Runtime] Invalid selector:', selector, error);
       }
@@ -69,13 +81,7 @@
           // Some inputs do not expose selection APIs.
         }
       } else {
-        const currentText = element.textContent || '';
-        element.textContent = currentText + text;
-        element.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          inputType: 'insertText',
-          data: text
-        }));
+        element.focus();
 
         try {
           const range = document.createRange();
@@ -87,6 +93,29 @@
         } catch (_) {
           // Selection is non-critical.
         }
+
+        // execCommand is deprecated as a general API but remains useful for
+        // contenteditable editors because it drives the same browser editing
+        // pipeline that Lexical/Quill/Slate listen to. Fall back to direct DOM
+        // mutation when a provider does not accept it.
+        let inserted = false;
+        try {
+          inserted = document.execCommand?.('insertText', false, text) === true;
+        } catch (_) {
+          inserted = false;
+        }
+
+        if (!inserted) {
+          const currentText = element.textContent || '';
+          element.textContent = currentText + text;
+        }
+
+        element.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          inputType: 'insertText',
+          data: text
+        }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
       return true;
