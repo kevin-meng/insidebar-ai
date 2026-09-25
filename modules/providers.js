@@ -85,7 +85,21 @@ let customProviderCache = [];
 
 async function loadCustomProviderDefinitions() {
   const records = await getStoredCustomProviders();
-  customProviderCache = records.map(customProviderRecordToDefinition);
+  const validProviders = [];
+
+  for (const record of records) {
+    try {
+      validProviders.push(customProviderRecordToDefinition(record));
+    } catch (error) {
+      console.warn(
+        '[Providers] Skipping invalid custom provider:',
+        record?.id || record?.name || 'unknown',
+        error
+      );
+    }
+  }
+
+  customProviderCache = validProviders;
   return customProviderCache;
 }
 
