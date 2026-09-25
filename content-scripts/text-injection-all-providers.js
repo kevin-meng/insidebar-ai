@@ -55,7 +55,7 @@
     }
   }
 
-  function injectTextIntoElement(element, text) {
+  function injectTextIntoElement(element, text, insertionMode = 'append') {
     if (!element || typeof text !== 'string' || !text.trim()) {
       return false;
     }
@@ -70,7 +70,7 @@
       }
 
       if (isInput) {
-        const currentValue = element.value || '';
+        const currentValue = insertionMode === 'replace' ? '' : (element.value || '');
         setNativeTextareaValue(element, currentValue + text);
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -87,11 +87,25 @@
           const range = document.createRange();
           const selection = window.getSelection();
           range.selectNodeContents(element);
-          range.collapse(false);
+          range.collapse(insertionMode !== 'replace');
           selection.removeAllRanges();
           selection.addRange(range);
         } catch (_) {
           // Selection is non-critical.
+        }
+
+        if (insertionMode === 'replace') {
+          element.textContent = '';
+          try {
+            const range = document.createRange();
+            const selection = window.getSelection();
+            range.selectNodeContents(element);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          } catch (_) {
+            // Selection is non-critical.
+          }
         }
 
         // execCommand is deprecated as a general API but remains useful for
@@ -106,7 +120,7 @@
         }
 
         if (!inserted) {
-          const currentText = element.textContent || '';
+          const currentText = insertionMode === 'replace' ? '' : (element.textContent || '');
           element.textContent = currentText + text;
         }
 
@@ -190,7 +204,13 @@
     // Only accept commands from the iframe parent (the extension side panel).
     if (window === window.top || event.source !== window.parent) return;
 
-    const { requestId, text, adapter, submit = false } = event.data;
+    const {
+      requestId,
+      text,
+      adapter,
+      submit = false,
+      insertionMode = 'append'
+    } = event.data;
 
     if (!text || typeof text !== 'string' || text.length > MAX_TEXT_BYTES) {
       reply(requestId, {
@@ -229,7 +249,11 @@
       return;
     }
 
-    const injected = injectTextIntoElement(input, text);
+    const injected = injectTextIntoElement(
+      input,
+      text,
+      insertionMode === 'replace' ? 'replace' : 'append'
+    );
 
     if (!injected) {
       reply(requestId, {
