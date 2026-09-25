@@ -1,5 +1,6 @@
 import { notifyMessage } from '../modules/messaging.js';
-import { DEFAULT_ENABLED_PROVIDER_IDS, getProviderById } from '../modules/providers.js';
+import { getEnabledProviders } from '../modules/providers.js';
+import { repairCustomProviderRegistrations } from '../modules/custom-provider-manager.js';
 import {
   saveConversation,
   findConversationByConversationId
@@ -61,12 +62,15 @@ async function configureActionBehavior() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await repairCustomProviderRegistrations();
   await createContextMenus();
   await loadShortcutSetting();
   await configureActionBehavior();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
+  await repairCustomProviderRegistrations();
+  await createContextMenus();
   await loadShortcutSetting();
   await configureActionBehavior();
 });
@@ -79,12 +83,9 @@ async function createContextMenus() {
   // Initialize language before creating menus
   await initializeLanguage();
 
-  // Get enabled providers from settings
-  const settings = await chrome.storage.sync.get({
-    enabledProviders: [...DEFAULT_ENABLED_PROVIDER_IDS]
-  });
-
-  const enabledProviders = settings.enabledProviders;
+  // Read concrete provider definitions so built-in and custom providers
+  // are handled through the same registry.
+  const enabledProviders = await getEnabledProviders();
 
   // Create main context menu item
   chrome.contextMenus.create({
@@ -94,12 +95,11 @@ async function createContextMenus() {
   });
 
   // Create submenu for each enabled provider
-  enabledProviders.forEach(providerId => {
-    const provider = getProviderById(providerId);
+  enabledProviders.forEach(provider => {
     chrome.contextMenus.create({
-      id: `provider-${providerId}`,
+      id: `provider-${provider.id}`,
       parentId: 'open-smarter-panel',
-      title: provider?.name || providerId,
+      title: provider.name,
       contexts: ['page', 'selection', 'link']
     });
   });
