@@ -10,6 +10,7 @@ function freezeAdapter(adapter) {
     ...adapter,
     inputSelectors: Object.freeze([...(adapter.inputSelectors || [])]),
     submitSelectors: Object.freeze([...(adapter.submitSelectors || [])]),
+    submitMode: adapter.submitMode || 'button',
     capabilities: Object.freeze({
       inject: true,
       autoSubmit: false,
@@ -44,6 +45,10 @@ export function validateProviderAdapter(adapter) {
 
   if (adapter.submitSelectors?.some(selector => typeof selector !== 'string' || !selector.trim())) {
     errors.push('Submit selectors must be non-empty strings');
+  }
+
+  if (adapter.submitMode && !['button', 'enter'].includes(adapter.submitMode)) {
+    errors.push('Submit mode must be "button" or "enter"');
   }
 
   return { valid: errors.length === 0, errors };
@@ -143,10 +148,8 @@ export const PROVIDER_ADAPTERS = Object.freeze({
   deepseek: createProviderAdapter({
     id: 'deepseek',
     inputSelectors: ['textarea.ds-scroll-area', 'textarea'],
-    submitSelectors: [
-      'button.ds-icon-button:not([aria-disabled="true"])',
-      '.ds-icon-button[role="button"]:not([aria-disabled="true"])'
-    ],
+    submitSelectors: [],
+    submitMode: 'enter',
     capabilities: { autoSubmit: true, history: true }
   }),
 
@@ -176,6 +179,7 @@ export function toRuntimeAdapter(adapter) {
     id: adapter.id,
     inputSelectors: [...adapter.inputSelectors],
     submitSelectors: [...adapter.submitSelectors],
+    submitMode: adapter.submitMode,
     capabilities: { ...adapter.capabilities }
   };
 }
