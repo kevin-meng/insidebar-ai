@@ -1,4 +1,5 @@
 import { notifyMessage } from '../modules/messaging.js';
+import { DEFAULT_ENABLED_PROVIDER_IDS, getProviderById } from '../modules/providers.js';
 import {
   saveConversation,
   findConversationByConversationId
@@ -80,7 +81,7 @@ async function createContextMenus() {
 
   // Get enabled providers from settings
   const settings = await chrome.storage.sync.get({
-    enabledProviders: ['chatgpt', 'claude', 'gemini', 'google', 'grok', 'deepseek', 'copilot']
+    enabledProviders: [...DEFAULT_ENABLED_PROVIDER_IDS]
   });
 
   const enabledProviders = settings.enabledProviders;
@@ -93,21 +94,12 @@ async function createContextMenus() {
   });
 
   // Create submenu for each enabled provider
-  const providerNames = {
-    chatgpt: 'ChatGPT',
-    claude: 'Claude',
-    gemini: 'Gemini',
-    grok: 'Grok',
-    deepseek: 'DeepSeek',
-    google: 'Google',
-    copilot: 'Microsoft Copilot'
-  };
-
   enabledProviders.forEach(providerId => {
+    const provider = getProviderById(providerId);
     chrome.contextMenus.create({
       id: `provider-${providerId}`,
       parentId: 'open-smarter-panel',
-      title: providerNames[providerId] || providerId,
+      title: provider?.name || providerId,
       contexts: ['page', 'selection', 'link']
     });
   });
