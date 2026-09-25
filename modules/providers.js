@@ -1,4 +1,8 @@
 import { getProviderAdapter } from './provider-adapters.js';
+import {
+  getStoredCustomProviders,
+  customProviderRecordToDefinition
+} from './custom-provider-manager.js';
 
 export const DEFAULT_ENABLED_PROVIDER_IDS = Object.freeze([
   'chatgpt',
@@ -73,15 +77,34 @@ const providerDefinitions = [
 export const PROVIDERS = Object.freeze(providerDefinitions.map(provider => Object.freeze({
   ...provider,
   enabled: true,
+  custom: false,
   adapter: getProviderAdapter(provider.id)
 })));
 
+let customProviderCache = [];
+
+async function loadCustomProviderDefinitions() {
+  const records = await getStoredCustomProviders();
+  customProviderCache = records.map(customProviderRecordToDefinition);
+  return customProviderCache;
+}
+
+export async function getAllProviders() {
+  const customProviders = await loadCustomProviderDefinitions();
+  return [...PROVIDERS, ...customProviders];
+}
+
 export function getProviderById(id) {
-  return PROVIDERS.find(provider => provider.id === id);
+  return PROVIDERS.find(provider => provider.id === id) ||
+    customProviderCache.find(provider => provider.id === id);
 }
 
 export async function getProviderByIdWithSettings(id) {
-  return getProviderById(id) || null;
+  const builtIn = PROVIDERS.find(provider => provider.id === id);
+  if (builtIn) return builtIn;
+
+  const customProviders = await loadCustomProviderDefinitions();
+  return customProviders.find(provider => provider.id === id) || null;
 }
 
 export async function getEnabledProviders() {
@@ -89,5 +112,6 @@ export async function getEnabledProviders() {
     enabledProviders: [...DEFAULT_ENABLED_PROVIDER_IDS]
   });
 
-  return PROVIDERS.filter(provider => settings.enabledProviders.includes(provider.id));
+  const allProviders = await getAllProviders();
+  return allProviders.filter(provider => settings.enabledProviders.includes(provider.id));
 }
