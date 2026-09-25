@@ -481,30 +481,34 @@ function setupMessageListener() {
   });
 }
 
-// Wait for iframe to be fully loaded and ready
-async function waitForIframeReady(providerId) {
+// Wait for iframe to be fully loaded and ready, but never block a broadcast forever.
+async function waitForIframeReady(providerId, timeoutMs = 12000) {
   const iframe = loadedIframes.get(providerId);
   if (!iframe) {
     throw new Error(`Iframe for provider ${providerId} not found`);
   }
 
-  const state = loadedIframesState.get(providerId);
-
-  // If already ready, return immediately
-  if (state === 'ready') {
+  if (loadedIframesState.get(providerId) === 'ready') {
     return;
   }
 
-  // If loading, wait for load event
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+
     const checkReady = () => {
       if (loadedIframesState.get(providerId) === 'ready') {
         resolve();
-      } else {
-        // Check again after a short delay
-        setTimeout(checkReady, 100);
+        return;
       }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        reject(new Error(`Iframe load timed out: ${providerId}`));
+        return;
+      }
+
+      setTimeout(checkReady, 100);
     };
+
     checkReady();
   });
 }
