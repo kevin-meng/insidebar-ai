@@ -98,6 +98,60 @@
         <div class="provider-list" id="provider-list">
           <!-- Provider items will be dynamically generated -->
         </div>
+
+        <div class="custom-provider-panel">
+          <div class="custom-provider-heading">
+            <div>
+              <div class="setting-label">Custom Web AI</div>
+              <div class="setting-description">
+                Add providers that are not built in yet. Host access is requested only for the site you add.
+              </div>
+            </div>
+          </div>
+
+          <div class="custom-provider-form">
+            <div class="custom-provider-grid">
+              <label>
+                <span>Name</span>
+                <input id="custom-provider-name" type="text" placeholder="e.g. Kimi">
+              </label>
+              <label>
+                <span>Web app URL</span>
+                <input id="custom-provider-url" type="url" placeholder="https://example.com/">
+              </label>
+            </div>
+
+            <label>
+              <span>Input selectors <small>(one per line, first match wins)</small></span>
+              <textarea id="custom-provider-input-selectors" rows="3" placeholder="textarea&#10;div[contenteditable=&quot;true&quot;]"></textarea>
+            </label>
+
+            <div class="custom-provider-grid">
+              <label>
+                <span>Submit mode</span>
+                <select id="custom-provider-submit-mode">
+                  <option value="button">Click send button</option>
+                  <option value="enter">Press Enter</option>
+                </select>
+              </label>
+              <label class="custom-provider-checkbox">
+                <input id="custom-provider-auto-submit" type="checkbox" checked>
+                <span>Allow Auto send</span>
+              </label>
+            </div>
+
+            <label id="custom-provider-submit-selectors-row">
+              <span>Send button selectors <small>(one per line)</small></span>
+              <textarea id="custom-provider-submit-selectors" rows="3" placeholder="button[type=&quot;submit&quot;]&#10;button[aria-label*=&quot;Send&quot;]"></textarea>
+            </label>
+
+            <div class="custom-provider-actions">
+              <button class="btn btn-primary" id="add-custom-provider-btn">Add Provider</button>
+            </div>
+          </div>
+
+          <div id="custom-provider-list" class="custom-provider-list"></div>
+        </div>
       </section>
 
       <!-- Keyboard Settings -->
