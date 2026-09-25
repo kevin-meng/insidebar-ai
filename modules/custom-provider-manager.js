@@ -146,9 +146,8 @@ async function hasHostPermission(originPattern) {
 }
 
 async function requestHostPermission(originPattern) {
-  const alreadyGranted = await hasHostPermission(originPattern);
-  if (alreadyGranted) return true;
-
+  // Keep request() directly in the user-initiated install flow. Calling it for
+  // an already granted origin simply resolves true without another prompt.
   return chrome.permissions.request({
     origins: [originPattern]
   });
