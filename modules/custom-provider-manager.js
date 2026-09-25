@@ -196,6 +196,7 @@ export async function installCustomProvider(config) {
 
   const provider = {
     id,
+    presetId: config.presetId ? String(config.presetId) : null,
     name,
     url: url.toString(),
     originPattern,
