@@ -42,6 +42,13 @@ The second group cannot be truthfully replaced by unit tests.
 
 The existing suite and the new Provider SDK/Broadcast tests have been run through GitHub Actions.
 
+Final automated result for this documented stage:
+
+- **15 test files passed**
+- **202 tests passed**
+- architecture validator passed
+- 8 built-in providers / 4 presets / 11 static DNR rules validated
+
 Coverage added in this stage includes:
 
 - adapter validation/serialization;
@@ -51,6 +58,9 @@ Coverage added in this stage includes:
 - permission-denied behavior;
 - HTTPS-only custom provider policy;
 - dynamic registration cleanup/repair;
+- partial-install rollback;
+- invalid custom-provider fault isolation;
+- actual shipped content-script append/replace behavior;
 - provider registry expectations.
 
 ### Architecture validation
