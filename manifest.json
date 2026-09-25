@@ -4,16 +4,15 @@
   "version": "1.7.2",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
-
   "permissions": [
     "sidePanel",
     "storage",
     "contextMenus",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",
-    "clipboardRead"
+    "clipboardRead",
+    "scripting"
   ],
-
   "host_permissions": [
     "*://chatgpt.com/*",
     "*://chat.openai.com/*",
@@ -30,18 +29,14 @@
     "*://bing.com/*",
     "*://api.github.com/*"
   ],
-
   "background": {
     "service_worker": "background/service-worker.js",
     "type": "module"
   },
-
   "side_panel": {
     "default_path": "sidebar/sidebar.html"
   },
-
   "options_page": "options/options.html",
-
   "action": {
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -51,7 +46,6 @@
     },
     "default_title": "__MSG_actionDefaultTitle__"
   },
-
   "commands": {
     "_execute_action": {
       "suggested_key": {
@@ -75,18 +69,18 @@
       "description": "__MSG_commandToggleFocus__"
     }
   },
-
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-
-
   "content_scripts": [
     {
-      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
       "js": [
         "content-scripts/enter-behavior-utils.js",
         "content-scripts/enter-behavior-chatgpt.js",
@@ -96,12 +90,16 @@
         "content-scripts/chatgpt-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/chatgpt-save-button.css"],
+      "css": [
+        "content-scripts/chatgpt-save-button.css"
+      ],
       "run_at": "document_end",
       "all_frames": true
     },
     {
-      "matches": ["https://claude.ai/*"],
+      "matches": [
+        "https://claude.ai/*"
+      ],
       "js": [
         "content-scripts/enter-behavior-utils.js",
         "content-scripts/enter-behavior-claude.js",
@@ -111,12 +109,16 @@
         "content-scripts/claude-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/claude-save-button.css"],
+      "css": [
+        "content-scripts/claude-save-button.css"
+      ],
       "run_at": "document_end",
       "all_frames": true
     },
     {
-      "matches": ["https://gemini.google.com/*"],
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
       "js": [
         "content-scripts/enter-behavior-utils.js",
         "content-scripts/enter-behavior-gemini.js",
@@ -126,12 +128,16 @@
         "content-scripts/gemini-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/gemini-save-button.css"],
+      "css": [
+        "content-scripts/gemini-save-button.css"
+      ],
       "run_at": "document_start",
       "all_frames": true
     },
     {
-      "matches": ["https://grok.com/*"],
+      "matches": [
+        "https://grok.com/*"
+      ],
       "js": [
         "content-scripts/button-finder-utils.js",
         "content-scripts/enter-behavior-utils.js",
@@ -142,12 +148,16 @@
         "content-scripts/grok-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/grok-save-button.css"],
+      "css": [
+        "content-scripts/grok-save-button.css"
+      ],
       "run_at": "document_start",
       "all_frames": true
     },
     {
-      "matches": ["https://chat.deepseek.com/*"],
+      "matches": [
+        "https://chat.deepseek.com/*"
+      ],
       "js": [
         "content-scripts/button-finder-utils.js",
         "content-scripts/enter-behavior-utils.js",
@@ -158,12 +168,16 @@
         "content-scripts/deepseek-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/deepseek-save-button.css"],
+      "css": [
+        "content-scripts/deepseek-save-button.css"
+      ],
       "run_at": "document_start",
       "all_frames": true
     },
     {
-      "matches": ["https://www.perplexity.ai/*"],
+      "matches": [
+        "https://www.perplexity.ai/*"
+      ],
       "js": [
         "content-scripts/enter-behavior-utils.js",
         "content-scripts/enter-behavior-perplexity.js",
@@ -173,12 +187,16 @@
         "content-scripts/perplexity-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/perplexity-save-button.css"],
+      "css": [
+        "content-scripts/perplexity-save-button.css"
+      ],
       "run_at": "document_end",
       "all_frames": true
     },
     {
-      "matches": ["https://www.google.com/search*"],
+      "matches": [
+        "https://www.google.com/search*"
+      ],
       "js": [
         "content-scripts/enter-behavior-utils.js",
         "content-scripts/enter-behavior-google.js",
@@ -188,12 +206,18 @@
         "content-scripts/google-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/google-save-button.css"],
+      "css": [
+        "content-scripts/google-save-button.css"
+      ],
       "run_at": "document_end",
       "all_frames": true
     },
     {
-      "matches": ["https://copilot.microsoft.com/*", "https://www.bing.com/chat*", "https://bing.com/chat*"],
+      "matches": [
+        "https://copilot.microsoft.com/*",
+        "https://www.bing.com/chat*",
+        "https://bing.com/chat*"
+      ],
       "js": [
         "content-scripts/enter-behavior-utils.js",
         "content-scripts/enter-behavior-copilot.js",
@@ -203,12 +227,16 @@
         "content-scripts/copilot-history-extractor.js",
         "content-scripts/focus-toggle.js"
       ],
-      "css": ["content-scripts/copilot-save-button.css"],
+      "css": [
+        "content-scripts/copilot-save-button.css"
+      ],
       "run_at": "document_end",
       "all_frames": true
     },
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "js": [
         "libs/Readability.js",
         "content-scripts/page-content-extractor.js"
@@ -217,7 +245,6 @@
       "all_frames": false
     }
   ],
-
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -227,7 +254,6 @@
       }
     ]
   },
-
   "web_accessible_resources": [
     {
       "resources": [
@@ -237,11 +263,15 @@
         "_locales/zh_CN/messages.json",
         "_locales/zh_TW/messages.json"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
-
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  },
+  "optional_host_permissions": [
+    "https://*/*"
+  ]
 }
