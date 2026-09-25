@@ -3,7 +3,7 @@
 **Date:** 2026-09-25  
 **Branch:** `feat/provider-sdk-broadcast`  
 **Pull request:** #1  
-**Status:** automated validation complete; browser E2E pending
+**Status:** automated validation complete (15 test files / 202 tests); browser E2E pending
 
 This directory is the durable engineering record for the Provider SDK / Multi-AI Broadcast stage.
 
@@ -23,6 +23,9 @@ This directory is the durable engineering record for the Provider SDK / Multi-AI
 
 5. [05_MANUAL_E2E_CHECKLIST.md](./05_MANUAL_E2E_CHECKLIST.md)  
    Minimal manual Chrome/Edge acceptance checklist for the final third-party web-app validation.
+
+6. [06_FOLLOW_UP_BACKLOG.md](./06_FOLLOW_UP_BACKLOG.md)  
+   Security hardening, dependency refresh, provider diagnostics and later product stages.
 
 ## Related permanent documentation
 
