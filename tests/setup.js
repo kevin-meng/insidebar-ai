@@ -46,6 +46,19 @@ global.chrome = {
   tabs: {
     create: vi.fn(() => Promise.resolve({ id: 1 })),
   },
+  permissions: {
+    request: vi.fn(() => Promise.resolve(true)),
+    contains: vi.fn(() => Promise.resolve(true)),
+    remove: vi.fn(() => Promise.resolve(true)),
+  },
+  scripting: {
+    registerContentScripts: vi.fn(() => Promise.resolve()),
+    unregisterContentScripts: vi.fn(() => Promise.resolve()),
+  },
+  declarativeNetRequest: {
+    updateDynamicRules: vi.fn(() => Promise.resolve()),
+    getDynamicRules: vi.fn(() => Promise.resolve([])),
+  },
 };
 
 // Helper to create mock IndexedDB request that triggers callbacks
