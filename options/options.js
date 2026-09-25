@@ -5,6 +5,7 @@ import {
   installCustomProvider,
   removeCustomProvider
 } from '../modules/custom-provider-manager.js';
+import { PROVIDER_PRESETS } from '../modules/provider-presets.js';
 import { getSettings, getSetting, saveSettings, saveSetting, resetSettings, exportSettings, importSettings } from '../modules/settings.js';
 import { applyTheme } from '../modules/theme-manager.js';
 import {
@@ -145,6 +146,7 @@ async function init() {
   await hideUpdateCheckingIfNeeded();  // Hide update checking for web store installations
   await renderProviderList();
   await renderCustomProviderList();
+  await renderProviderPresetList();
   setupCustomProviderControls();
   setupEventListeners();
   setupShortcutHelpers();
@@ -248,6 +250,84 @@ async function renderProviderList() {
     });
   });
 }
+async function renderProviderPresetList() {
+  const container = document.getElementById('provider-preset-list');
+  if (!container) return;
+
+  const installed = await getStoredCustomProviders();
+  const installedPresetIds = new Set(installed.map(provider => provider.presetId).filter(Boolean));
+
+  container.innerHTML = '';
+
+  PROVIDER_PRESETS.forEach(preset => {
+    const card = document.createElement('div');
+    card.className = 'provider-preset-card';
+
+    const header = document.createElement('div');
+    header.className = 'provider-preset-card-header';
+
+    const name = document.createElement('div');
+    name.className = 'provider-preset-card-name';
+    name.textContent = preset.name;
+
+    const badge = document.createElement('span');
+    badge.className = 'provider-preset-badge';
+    badge.textContent = preset.status === 'experimental' ? 'Experimental' : preset.status;
+
+    header.appendChild(name);
+    header.appendChild(badge);
+
+    const url = document.createElement('div');
+    url.className = 'provider-preset-card-url';
+    url.textContent = preset.url;
+
+    const actions = document.createElement('div');
+    actions.className = 'provider-preset-card-actions';
+
+    if (installedPresetIds.has(preset.id)) {
+      const installedLabel = document.createElement('span');
+      installedLabel.className = 'provider-preset-installed';
+      installedLabel.textContent = 'Installed';
+      actions.appendChild(installedLabel);
+    } else {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-secondary';
+      button.textContent = 'Install';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await installCustomProvider({
+            presetId: preset.id,
+            name: preset.name,
+            url: preset.url,
+            inputSelectors: preset.inputSelectors,
+            submitSelectors: preset.submitSelectors,
+            submitMode: preset.submitMode,
+            autoSubmit: true
+          });
+
+          await renderProviderPresetList();
+          await renderCustomProviderList();
+          await updateDefaultProviderDropdown();
+          showStatus('success', `${preset.name} installed. Open the sidebar to test it.`);
+        } catch (error) {
+          console.error('Failed to install provider preset:', error);
+          showStatus('error', error.message || `Failed to install ${preset.name}`);
+        } finally {
+          button.disabled = false;
+        }
+      });
+      actions.appendChild(button);
+    }
+
+    card.appendChild(header);
+    card.appendChild(url);
+    card.appendChild(actions);
+    container.appendChild(card);
+  });
+}
+
 async function renderCustomProviderList() {
   const container = document.getElementById('custom-provider-list');
   if (!container) return;
@@ -289,6 +369,7 @@ async function renderCustomProviderList() {
       try {
         await removeCustomProvider(provider.id);
         await renderCustomProviderList();
+        await renderProviderPresetList();
         await updateDefaultProviderDropdown();
         showStatus('success', `Removed ${provider.name}`);
       } catch (error) {
@@ -347,6 +428,7 @@ function setupCustomProviderControls() {
       document.getElementById('custom-provider-submit-selectors').value = '';
 
       await renderCustomProviderList();
+      await renderProviderPresetList();
       await updateDefaultProviderDropdown();
       showStatus('success', `Added ${provider.name}. Open the sidebar to use it.`);
     } catch (error) {
