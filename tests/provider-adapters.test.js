@@ -31,6 +31,7 @@ describe('provider adapter SDK', () => {
       id: 'example',
       inputSelectors: ['textarea'],
       submitSelectors: ['button[type="submit"]'],
+      submitMode: 'button',
       capabilities: {
         inject: true,
         autoSubmit: true,
