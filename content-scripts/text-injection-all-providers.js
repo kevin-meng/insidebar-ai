@@ -103,13 +103,26 @@
     return true;
   }
 
-  async function submitPrompt(selectors) {
+  async function submitPrompt(adapter, input) {
+    // Let React/Vue/Lexical update button state after the input event.
+    await new Promise(resolve => setTimeout(resolve, 120));
+
+    if (adapter.submitMode === 'enter') {
+      input.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      }));
+      return { submitted: true };
+    }
+
+    const selectors = adapter.submitSelectors || [];
     if (!Array.isArray(selectors) || selectors.length === 0) {
       return { submitted: false, reason: 'submit_not_configured' };
     }
-
-    // Let React/Vue/Lexical update button state after the input event.
-    await new Promise(resolve => setTimeout(resolve, 120));
 
     let button = findFirst(selectors);
 
@@ -208,7 +221,7 @@
       return;
     }
 
-    const submitResult = await submitPrompt(adapter.submitSelectors || []);
+    const submitResult = await submitPrompt(adapter, input);
 
     reply(requestId, {
       success: submitResult.submitted,
